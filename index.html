@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Transcript-Synced Audio Player</title>
+
+<!-- Tailwind – instant styling -->
+<script src="https://cdn.tailwindcss.com"></script>
+
+<style>
+  .active-line { background: rgb(255 237 213); }
+</style>
+</head>
+<body class="bg-gray-50 min-h-screen font-sans antialiased">
+
+<!-- ─── GLOBAL SPINNER ───────────── -->
+<div id="spinner"
+     class="fixed inset-0 bg-white/60 backdrop-blur flex items-center justify-center text-blue-600 text-3xl hidden z-50">
+  <svg class="animate-spin h-10 w-10 text-blue-600" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+    <circle cx="12" cy="12" r="10" stroke-width="4" class="opacity-25"/>
+    <path d="M4 12a8 8 0 018-8" stroke-width="4" stroke-linecap="round" class="opacity-75"/>
+  </svg>
+</div>
+
+<!-- ─── PAGE CONTENT ─────────────── -->
+<div class="max-w-6xl mx-auto py-8 px-4 space-y-8">
+
+  <h1 class="text-3xl font-bold">Transcript-Synced Audio Player</h1>
+
+  <!-- GRID: audio (left) · transcript (right) -->
+  <div class="grid md:grid-cols-2 gap-6">
+
+    <!-- ───── LEFT COL – AUDIO ───── -->
+    <div class="space-y-6">
+      <label id="dropZone"
+             class="flex flex-col items-center justify-center border-2 border-dashed border-gray-400 rounded-lg p-6
+                    text-gray-500 hover:bg-gray-100 cursor-pointer transition">
+        <span class="text-center leading-relaxed">
+          Drag and drop audio here<br>
+          <span class="text-sm text-gray-400">or click to choose</span>
+        </span>
+        <input type="file" id="audioInput" accept="audio/*" class="hidden">
+      </label>
+
+      <audio id="player" controls class="w-full rounded shadow"></audio>
+    </div>
+
+    <!-- ───── RIGHT COL – TRANSCRIPT ───── -->
+    <div class="space-y-6">
+      <div class="space-y-3">
+        <h2 class="text-xl font-semibold">Add transcript</h2>
+        <textarea id="textPaste" rows="5"
+                  class="w-full rounded border border-gray-300 p-3 focus:ring-blue-500 focus:border-blue-500"
+                  placeholder="Paste timestamped transcript here…"></textarea>
+      </div>
+
+      <div>
+        <h2 class="text-xl font-semibold mb-2">Transcript</h2>
+        <ul id="transcript"
+            class="max-h-[32rem] overflow-y-auto divide-y divide-gray-200 bg-white rounded-lg shadow"></ul>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ─── SCRIPT ──────────────────── -->
+<script>
+const audio        = document.getElementById('player');
+const transcriptEl = document.getElementById('transcript');
+const spinner      = document.getElementById('spinner');
+
+/* === helper utils === */
+const stamp2s = t => { const [h,m,s]=t.split(':').map(Number); return h*3600+m*60+s; };
+const showSpin = () => spinner.classList.remove('hidden');
+const hideSpin = () => spinner.classList.add('hidden');
+
+/* === AUDIO LOAD === */
+const dropZone = document.getElementById('dropZone');
+
+dropZone.addEventListener('click', () => document.getElementById('audioInput').click());
+
+['dragenter','dragover'].forEach(evt =>
+  dropZone.addEventListener(evt, e => { e.preventDefault(); dropZone.classList.add('bg-gray-100'); })
+);
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('bg-gray-100'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropZone.classList.remove('bg-gray-100');
+
+  const f = e.dataTransfer.files[0];
+  if (f && f.type.startsWith('audio/')) loadAudio(f);
+  /* silently ignore if it isn't audio → no scary modal */
+});
+
+document.getElementById('audioInput').addEventListener('change',
+  e => { const f=e.target.files[0]; if(f) loadAudio(f); }
+);
+
+function loadAudio(file){
+  showSpin();
+  audio.src = URL.createObjectURL(file);
+  audio.load();
+  audio.onloadedmetadata = hideSpin;
+}
+
+/* === PASTE TRANSCRIPT === */
+document.getElementById('textPaste').addEventListener('blur', async e => {
+  const raw = e.target.value.trim();
+  if(!raw) return;
+  showSpin();
+  /* slight delay so spinner is visible even for very short transcripts */
+  await new Promise(r=>setTimeout(r,50));
+  renderTranscript(raw);
+  hideSpin();
+});
+
+/* === RENDER & INTERACTION === */
+function renderTranscript(raw){
+  transcriptEl.innerHTML = '';
+  const lines = raw.split(/\r?\n/).filter(Boolean);
+  let i = 0;
+
+  while(i < lines.length){
+    const match = lines[i].match(/^(\d{2}:\d{2}:\d{2})\s+(.+)/);
+    if(!match){ i++; continue; }
+
+    const [ , stamp, speaker ] = match;
+    let text = '';
+    i++;
+    while(i < lines.length && !/^\d{2}:\d{2}:\d{2}\s+/.test(lines[i])){
+      text += (text ? ' ' : '') + lines[i].trim();
+      i++;
+    }
+    addItem(stamp, speaker, text);
+  }
+}
+
+function addItem(stamp, speaker, text){
+  const li = document.createElement('li');
+  li.className = "px-3 py-2 hover:bg-gray-50";
+  li.innerHTML = `
+    <div class="flex items-start gap-2">
+      <button class="timestamp font-mono text-blue-600 hover:text-blue-800 shrink-0">${stamp}</button>
+      <details class="w-full">
+        <summary class="cursor-pointer">
+          <span class="font-semibold">${speaker}</span>
+          <span class="text-gray-500">&nbsp;–&nbsp;${text.slice(0,70)}${text.length>70?'…':''}</span>
+        </summary>
+        <p class="mt-2 text-gray-700 leading-relaxed">${text}</p>
+      </details>
+    </div>`;
+  li.querySelector('.timestamp').onclick = () => { audio.currentTime = stamp2s(stamp); audio.play(); };
+  transcriptEl.appendChild(li);
+}
+
+/* === PLAYBACK HIGHLIGHT === */
+audio.addEventListener('timeupdate', ()=>{
+  const t = audio.currentTime;
+  [...transcriptEl.children].forEach(li=>{
+    const s = stamp2s(li.querySelector('.timestamp').textContent);
+    const act = t >= s && t < s+1;
+    li.classList.toggle('active-line', act);
+    if(act) li.scrollIntoView({ block:'center', behavior:'smooth' });
+  });
+});
+</script>
+</body>
+</html>
