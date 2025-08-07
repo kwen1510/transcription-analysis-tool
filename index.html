@@ -153,30 +153,28 @@ function addItem(stamp, speaker, text){
   li.innerHTML = `
     <div class="flex items-start gap-2">
       <button class="timestamp font-mono text-blue-600 hover:text-blue-800 shrink-0">${stamp}</button>
-      <details class="w-full">
-        <summary class="cursor-pointer">
-          <span class="font-semibold">${speaker}</span>
-          <span class="text-gray-500">&nbsp;–&nbsp;${text.slice(0,70)}${text.length>70?'…':''}</span>
-        </summary>
-        <p class="mt-2 text-gray-700 leading-relaxed">${text}</p>
-      </details>
+      <div class="w-full">
+        <span class="font-semibold">${speaker}</span>
+        <span class="text-gray-500">&nbsp;–&nbsp;</span>
+        <span class="text-gray-700 leading-relaxed">${text}</span>
+      </div>
     </div>`;
   li.querySelector('.timestamp').onclick = () => {
     audio.currentTime = stamp2s(stamp);
     audio.play();
-    // Scroll the transcript panel so this line is centered inside it, but don't scroll the page
-const panel = transcriptEl;
-const liTop = li.offsetTop;
-const liHeight = li.offsetHeight;
-const panelHeight = panel.clientHeight;
-panel.scrollTo({
-  top: liTop - (panelHeight / 2) + (liHeight / 2),
-  behavior: 'smooth'
-});
-
+    // Only scroll the transcript panel!
+    const panel = transcriptEl;
+    const liTop = li.offsetTop;
+    const liHeight = li.offsetHeight;
+    const panelHeight = panel.clientHeight;
+    panel.scrollTo({
+      top: liTop - (panelHeight / 2) + (liHeight / 2),
+      behavior: 'smooth'
+    });
   };
   transcriptEl.appendChild(li);
 }
+
 
 // PLAYBACK HIGHLIGHT (DOES NOT SCROLL PAGE!)
 audio.addEventListener('timeupdate', () => {
